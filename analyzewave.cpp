@@ -81,7 +81,7 @@ int main(int argc, char** argv)
 
     // initiate the timer that will be needed to stop the program prematurely
     int stop_seconds = std::stoi(argv[3]);
-    std::cout << stop_seconds << std::endl;
+    //std::cout << stop_seconds << std::endl;
     double elapsed_time = 0.0;
     auto start_time = std::chrono::steady_clock::now();
     auto end_time = std::chrono::steady_clock::now();
@@ -100,7 +100,7 @@ int main(int argc, char** argv)
         rho_handle.getVar({s,0,0}, {1,nrows,ncols}, rho.data());
         
         // report status to console
-        std::cout << "Currently analyzing time " << time << " (step " << s+1 << ")    ";
+        std::cout << "\rCurrently analyzing time " << time << " (step " << s+1 << ")    ";
         std::cout.flush();
         
         // compute energies
@@ -116,16 +116,16 @@ int main(int argc, char** argv)
 	// get the end of the time
 	end_time = std::chrono::steady_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-	std::cout << "Duration " << duration.count() << std::endl;
+	//std::cout << "Duration " << duration.count() << std::endl;
 	elapsed_time += duration.count()/1000;
-	std::cout << elapsed_time << std::endl;
+	//std::cout << elapsed_time << std::endl;
 
         // store in output file
         fout << time << "\t" << T << "\t" << V << "\t" << T+V << "\n";
-
 	if (elapsed_time > stop_seconds) {
-		break;
-        }
+    		f.close();
+		exit(0);
+	}
     }
     
     f.close();

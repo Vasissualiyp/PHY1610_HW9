@@ -17,11 +17,15 @@ analyzewave: analyzewave.o
 
 ./int_test: int_test.o
 	$(CXX) $(LDFLAGS) -o $@ $^   -lCatch2Main -lCatch2 #-lboost_unit_test_framework
+	make analyzewave
 
 int_test.o: int_test.cpp
 	$(CXX) -c $(CXXFLAGS) -o int_test.o int_test.cpp
 
 #}}}
+
+run:
+	./analyzewave precisewave.nc energies.tsv 999999
 
 clean:
 	$(RM) analyzewave.o mpianalyzewave.o analyzewave mpianalyzewave int_test.o int_test

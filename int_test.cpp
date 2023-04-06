@@ -2,12 +2,20 @@
 #include <catch2/catch_all.hpp>
 #include <fstream>
 #include <iostream>
+#include <cstdlib>
 
 TEST_CASE("Integrated test of analyzewave") {
-    
-    // Run the sim with test wave parameters file
-    std::system("./analyzewave precisewave.nc int_test.tsv 10");
 
+    // Get the time to run the test for from the command-line argument
+    //int time_to_run = std::atoi(argv[1]);
+    // For now, just set the time to run (in seconds)
+    int time_to_run = 200;
+
+    // Run the sim with test wave parameters file
+    std::string command = "./analyzewave precisewave.nc int_test.tsv ";
+    command += std::to_string(time_to_run);
+    std::system(command.c_str());
+    
     // Compare the output file with the expected file
     std::ifstream expected_file("energies.tsv");
     std::ifstream output_file("int_test.tsv");

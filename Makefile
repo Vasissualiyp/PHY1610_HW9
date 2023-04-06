@@ -1,7 +1,7 @@
 CXX=g++
 CXXFLAGS=-std=c++17 -O3 -march=native -g
 LDFLAGS=-g
-LDLIBS=-lnetcdf_c++4 -lnetcdf
+LDLIBS=-lnetcdf_c++4 -lnetcdf -lmpi_cxx -lmpi
 
 all: analyzewave
 	

@@ -3,7 +3,7 @@
 // Reads a netcdf file produced by wave2d and computes the potential,
 // kinetic, and total energy of the wave as a function of time.
 //
-
+#include <mpi.h>
 #include <fstream>
 #include <iostream>
 #include <netcdf>
@@ -27,13 +27,6 @@ unsigned long get_dimension(NcFile& f, const std::string& dimname)
 
 int main(int argc, char** argv)
 {   
-    // Setting up the MPI
-    //MPI_Init(&argc,&argv);
-    //MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-    //MPI_Comm_size(MPI_COMM_WORLD,&size);
-    //left = rank-1; if(left<0)left=MPI_PROC_NULL;
-    //right = rank+1; if(right>=size)right=MPI_PROC_NULL;
-    //localn = n/size;
 
     // Program parameters are the name of an input file and an output
     // file and are given from command line or, if not, are given
@@ -88,7 +81,20 @@ int main(int argc, char** argv)
 
     // start the timer for the main loop
     start_time = std::chrono::steady_clock::now();
-
+    
+    // MPI settings
+    int size;
+    int rank;
+    MPI_Init(&argc,&argv);
+    MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+    MPI_Comm_size(MPI_COMM_WORLD,&size);
+    int left = rank-1; if(left<0)left=MPI_PROC_NULL;
+    int right = rank+1; if(right>=size)right=MPI_PROC_NULL;
+    int localrows = nrows/size;
+    //double a = 0.25*dt/pow(dx,2);
+    int guardup = 0;
+    int guarddown = localrows+1;
+    
     for (unsigned long s = 1; s < noutsteps; s++)
     {
         // store previous slice as rho_prev to be able to compute the
@@ -98,15 +104,40 @@ int main(int argc, char** argv)
         // get next time slice
         time_handle.getVar({s}, {1}, &time);
         rho_handle.getVar({s,0,0}, {1,nrows,ncols}, rho.data());
+
+	// MPI send/recieve
+        for (int j=1; j<ncols-1; j++) {
+		MPI_Sendrecv(&rho[1][j], 1,MPI_DOUBLE,left, 11,
+			     &rho[guarddown][j],1,MPI_DOUBLE,right,11,
+			     MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		MPI_Sendrecv(&rho[localrows][j], 1,MPI_DOUBLE,right,11,
+			     &rho[guardup][j], 1,MPI_DOUBLE,left, 11,
+			     MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		MPI_Sendrecv(&rho_prev[1][j], 1,MPI_DOUBLE,left, 11,
+			     &rho_prev[guarddown][j],1,MPI_DOUBLE,right,11,
+			     MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		MPI_Sendrecv(&rho_prev[localrows][j], 1,MPI_DOUBLE,right,11,
+			     &rho_prev[guardup][j], 1,MPI_DOUBLE,left, 11,
+			     MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		if (rank==0) {
+		rho[guardup][j]=0.0;
+		rho_prev[guardup][j]=0.0;
+		}
+		if (rank==size-1) {
+		rho[guarddown][j]=0.0;
+		rho_prev[guarddown][j]=0.0;
+		}
+	}
+        
         
         // report status to console
         std::cout << "\rCurrently analyzing time " << time << " (step " << s+1 << ")    ";
         std::cout.flush();
-        
+
         // compute energies
         double T = 0.0;
         double V = 0.0;
-        for (int i=1; i<nrows-1; i++) {
+        for (int i=1; i<localrows-1; i++) {
             for (int j=1; j<ncols-1; j++) {
                 T += pow((dx/outtime)*(rho[i][j]-rho_prev[i][j]),2);
                 V += pow(c,2)*(pow(rho[i][j]-rho[i-1][j],2)

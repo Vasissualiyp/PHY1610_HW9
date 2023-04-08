@@ -135,15 +135,21 @@ int main(int argc, char** argv)
         std::cout.flush();
 
         // compute energies
-        double T = 0.0;
-        double V = 0.0;
+        double T_local = 0.0;
+        double V_local = 0.0;
         for (int i=1; i<localrows-1; i++) {
             for (int j=1; j<ncols-1; j++) {
-                T += pow((dx/outtime)*(rho[i][j]-rho_prev[i][j]),2);
-                V += pow(c,2)*(pow(rho[i][j]-rho[i-1][j],2)
-                    +pow(rho[i][j]-rho[i][j-1],2));
+                T_local += pow((dx/outtime)*(rho[i][j]-rho_prev[i][j]),2);
+                V_local += pow(c,2)*(pow(rho[i][j]-rho[i-1][j],2)
+                         +pow(rho[i][j]-rho[i][j-1],2));
             }
         }
+
+	// reduce local energies to global energies
+	double T, V;
+	MPI_Reduce(&T_local, &T, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+	MPI_Reduce(&V_local, &V, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
 	// get the end of the time
 	end_time = std::chrono::steady_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -154,14 +160,15 @@ int main(int argc, char** argv)
         // store in output file
         fout << time << "\t" << T << "\t" << V << "\t" << T+V << "\n";
 	if (elapsed_time > stop_seconds) {
-    		f.close();
-		exit(0);
+		break;
 	}
     }
     
     f.close();
 
     std::cout << "\nDone\nOutput written to energies.dat\n";
+
+    MPI_Finalize();
 
 
 }

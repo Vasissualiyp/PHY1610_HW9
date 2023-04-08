@@ -12,7 +12,8 @@ TEST_CASE("Integrated test of analyzewave") {
     int time_to_run = 200;
 
     // Run the sim with test wave parameters file
-    std::string command = "./analyzewave precisewave.nc int_test.tsv ";
+    //std::string command = "./analyzewave precisewave.nc int_test.tsv ";
+    std::string command = "mpirun -np 4 ./analyzewave precisewave.nc int_test.tsv ";
     command += std::to_string(time_to_run);
     std::system(command.c_str());
     
@@ -30,9 +31,9 @@ TEST_CASE("Integrated test of analyzewave") {
 
     std::string expected_str = expected_stream.str();
     std::string output_str = output_stream.str();
-    std::size_t pos = expected_str.find("# t = 100\n");
+    std::size_t pos = expected_str.find("# c=1");
     expected_str.erase(0, pos);
-    pos = output_str.find("# t = 100\n");
+    pos = output_str.find("# c=1");
     output_str.erase(0, pos);
 
     REQUIRE(expected_str == output_str);

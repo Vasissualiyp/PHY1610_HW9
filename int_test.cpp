@@ -10,10 +10,11 @@ TEST_CASE("Integrated test of analyzewave") {
     //int time_to_run = std::atoi(argv[1]);
     // For now, just set the time to run (in seconds)
     int time_to_run = 100;
+    int no_proccesses = 4;
 
     // Run the sim with test wave parameters file
     //std::string command = "./analyzewave precisewave.nc int_test.tsv ";
-    std::string command = "mpirun -np 1 ./analyzewave precisewave.nc int_test.tsv ";
+    std::string command = "mpirun -np "  + std::to_string(no_proccesses) + " ./analyzewave precisewave.nc int_test.tsv ";
     command += std::to_string(time_to_run);
     std::system(command.c_str());
     

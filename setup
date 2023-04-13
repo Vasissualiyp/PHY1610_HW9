@@ -1,1 +1,1 @@
-module load gcc/12 openmpi rarray gdb hdf5 netcdf catch2/3.3.1
+module load gcc/12 rarray gdb hdf5 netcdf catch2/3.3.1 openmpi/4

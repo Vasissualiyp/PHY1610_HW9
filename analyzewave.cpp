@@ -58,8 +58,8 @@ int main(int argc, char** argv)
 
     int left = rank-1; if(left<0)left=MPI_PROC_NULL;
     int right = rank+1; if(right>=size)right=MPI_PROC_NULL;
-    int localrows = nrows / size + ((rank < nrows % size) ? 1 : 0) - 2;
-    int startrow = nrows / size * rank + std::min(rank, int(nrows % size)) + 2;
+    int localrows = nrows / size + ((rank < nrows % size) ? 1 : 0) ;
+    int startrow = nrows / size * rank + std::min(rank, int(nrows % size)) ;
     std::cout << "Process " << rank << " is reading from " << inputfilename << "\n";
     std::cout << "Process " << rank << " is writing to " << outputfilename << "\n";
     std::cout << "Process " << rank << " starts at row " << startrow << " and ends at row " << startrow + localrows << "\n";
@@ -89,7 +89,8 @@ int main(int argc, char** argv)
          << "#time\tkinetic-energy\tpotential-energy\ttotal-energy\n";
 
     // Get first time slice
-    rho_handle.getVar({0,0,0}, {1,localrows,ncols}, rho.data());
+    rho_handle.getVar({0,startrow,0}, {1,localrows,ncols}, &rho[1][0]);
+    //rho_prev = rho;
     time_handle.getVar({0}, {1}, &time);
     
     std::cout << "Analyzing total time " << runtime
@@ -164,12 +165,16 @@ int main(int argc, char** argv)
             }
         }
 	
-	std::cout << "Process "<< rank << " got to part D" << std::endl;
+	std::cout << "Process "<< rank << " got local T=" << T_local <<  std::endl;
 
 	// reduce local energies to global energies
 	double T, V;
 	MPI_Reduce(&T_local, &T, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 	MPI_Reduce(&V_local, &V, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+	if (rank == 0) {
+		std::cout << "Process "<< rank << " got total T=" << T <<  std::endl;
+    	}
 
 	// get the end of the time
 	end_time = std::chrono::steady_clock::now();
@@ -179,17 +184,20 @@ int main(int argc, char** argv)
 	//std::cout << elapsed_time << std::endl;
 
         // store in output file
-        fout << time << "\t" << T << "\t" << V << "\t" << T+V << "\n";
+	if (rank == 0) {
+		fout << time << "\t" << T << "\t" << V << "\t" << T+V << "\n";
+	}
 	if (elapsed_time > stop_seconds) {
 		break;
 	}
     }
-    
-    f.close();
 
-    std::cout << "\nDone\nOutput written to energies.dat\n";
+    fout.close();
 
     MPI_Finalize();
+
+    std::cout << "\nDone\nOutput written to " << outputfilename <<"\n";
+
 
 
 }

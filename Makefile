@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=-std=c++17 -O3 -march=native -g
+CXXFLAGS=-std=c++17 -O0 -march=native -g
 LDFLAGS=-g
 LDLIBS=-lnetcdf_c++4 -lnetcdf -lmpi_cxx -lmpi
 
@@ -15,12 +15,12 @@ analyzewave: analyzewave.o
 
 # Module tests compilation {{{
 
-./int_test: int_test.o
-	$(CXX) $(LDFLAGS) -o $@ $^   -lCatch2Main -lCatch2 #-lboost_unit_test_framework
-	make analyzewave
-
 int_test.o: int_test.cpp
 	$(CXX) -c $(CXXFLAGS) -o int_test.o int_test.cpp
+
+int_test: int_test.o
+	$(CXX) $(LDFLAGS) -o $@ $^   -lCatch2Main -lCatch2 #-lboost_unit_test_framework
+	make analyzewave
 
 #}}}
 

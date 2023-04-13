@@ -37,6 +37,13 @@ int main(int argc, char** argv)
    
     std::cout << "Reading from " << inputfilename << "\n";
     std::cout << "Writing to " << outputfilename << "\n";
+    
+    // MPI settings
+    int size;
+    int rank;
+    MPI_Init(&argc,&argv);
+    MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+    MPI_Comm_size(MPI_COMM_WORLD,&size);
 
     // Open file and get some of the simulation parameters as well as the
     // number of stored steps in the netcdf file 
@@ -49,11 +56,27 @@ int main(int argc, char** argv)
     double outtime = get_double_attribute(f, "outtime");
     double runtime = get_double_attribute(f, "runtime");
 
+    int left = rank-1; if(left<0)left=MPI_PROC_NULL;
+    int right = rank+1; if(right>=size)right=MPI_PROC_NULL;
+    int localrows = nrows / size + ((rank < nrows % size) ? 1 : 0) - 2;
+    int startrow = nrows / size * rank + std::min(rank, int(nrows % size)) + 2;
+    std::cout << "Process " << rank << " is reading from " << inputfilename << "\n";
+    std::cout << "Process " << rank << " is writing to " << outputfilename << "\n";
+    std::cout << "Process " << rank << " starts at row " << startrow << " and ends at row " << startrow + localrows << "\n";
+
+    
     // Find the rho and t variables, and create arrays to hold time slices
     NcVar rho_handle  = f.getVar("rho");
     NcVar time_handle = f.getVar("t");    
-    rmatrix<double> rho(nrows,ncols);
-    rmatrix<double> rho_prev(nrows,ncols);
+
+    //double a = 0.25*dt/pow(dx,2);
+    int guardup = 1;
+    int guarddown = localrows;
+
+
+    // Create arrays for the densities
+    rmatrix<double> rho(localrows + 2,ncols);
+    rmatrix<double> rho_prev(localrows + 2,ncols);
     double time;
 
     // Start output with a header
@@ -66,7 +89,7 @@ int main(int argc, char** argv)
          << "#time\tkinetic-energy\tpotential-energy\ttotal-energy\n";
 
     // Get first time slice
-    rho_handle.getVar({0,0,0}, {1,nrows,ncols}, rho.data());
+    rho_handle.getVar({0,0,0}, {1,localrows,ncols}, rho.data());
     time_handle.getVar({0}, {1}, &time);
     
     std::cout << "Analyzing total time " << runtime
@@ -81,19 +104,8 @@ int main(int argc, char** argv)
 
     // start the timer for the main loop
     start_time = std::chrono::steady_clock::now();
-    
-    // MPI settings
-    int size;
-    int rank;
-    MPI_Init(&argc,&argv);
-    MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-    MPI_Comm_size(MPI_COMM_WORLD,&size);
-    int left = rank-1; if(left<0)left=MPI_PROC_NULL;
-    int right = rank+1; if(right>=size)right=MPI_PROC_NULL;
-    int localrows = nrows/size;
-    //double a = 0.25*dt/pow(dx,2);
-    int guardup = 0;
-    int guarddown = localrows+1;
+
+    std::cout << "Process "<< rank << " got to start of the time loop" << std::endl;
     
     for (unsigned long s = 1; s < noutsteps; s++)
     {
@@ -103,7 +115,13 @@ int main(int argc, char** argv)
         
         // get next time slice
         time_handle.getVar({s}, {1}, &time);
-        rho_handle.getVar({s,0,0}, {1,nrows,ncols}, rho.data());
+        //rho_handle.getVar({s,0,0}, {1,nrows,ncols}, rho.data());
+	//rho_handle.getVar({s, rank * localrows, 0}, {1, localrows, ncols}, rho.data());
+	rho_handle.getVar({s, startrow, 0}, {1, localrows, ncols}, &rho[1][0]);
+
+	std::cout << "Process "<< rank << " got to start of MPI send/receive part" << std::endl;
+
+
 
 	// MPI send/recieve
         for (int j=1; j<ncols-1; j++) {
@@ -120,15 +138,16 @@ int main(int argc, char** argv)
 			     &rho_prev[guardup][j], 1,MPI_DOUBLE,left, 11,
 			     MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 		if (rank==0) {
-		rho[guardup][j]=0.0;
-		rho_prev[guardup][j]=0.0;
+		rho[0][j]=0.0;
+		rho_prev[0][j]=0.0;
 		}
 		if (rank==size-1) {
-		rho[guarddown][j]=0.0;
-		rho_prev[guarddown][j]=0.0;
+		rho[localrows+1][j]=0.0;
+		rho_prev[localrows+1][j]=0.0;
 		}
 	}
         
+	std::cout << "Process "<< rank << " got to part C" << std::endl;
         
         // report status to console
         std::cout << "\rCurrently analyzing time " << time << " (step " << s+1 << ")    ";
@@ -144,6 +163,8 @@ int main(int argc, char** argv)
                          +pow(rho[i][j]-rho[i][j-1],2));
             }
         }
+	
+	std::cout << "Process "<< rank << " got to part D" << std::endl;
 
 	// reduce local energies to global energies
 	double T, V;

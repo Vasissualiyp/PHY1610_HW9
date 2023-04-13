@@ -62,8 +62,10 @@ int main(int argc, char** argv)
     int down = rank+1; if(down>=size)down=MPI_PROC_NULL;
     int localrows = nrows / size + ((rank < nrows % size) ? 1 : 0) ;
     int startrow = nrows / size * rank + std::min(rank, int(nrows % size)) ;
+    if (rank==0) {
     std::cout << "Process " << rank << " is reading from " << inputfilename << "\n";
     std::cout << "Process " << rank << " is writing to " << outputfilename << "\n";
+    }
     std::cout << "Process " << rank << " starts at row " << startrow << " and ends at row " << startrow + localrows << "\n";
 
     
@@ -94,19 +96,25 @@ int main(int argc, char** argv)
     rho_handle.getVar({0,startrow,0}, {1,localrows,ncols}, &rho[1][0]);
     //rho_prev = rho;
     time_handle.getVar({0}, {1}, &time);
+    MPI_Sendrecv(&rho[1][0], 	 ncols, MPI_DOUBLE, up,   11,
+    	     &rho[guarddown][0], ncols, MPI_DOUBLE, down, 11,
+    	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Sendrecv(&rho[localrows][0], ncols, MPI_DOUBLE, down, 11,
+    	     &rho[guardup][0],   ncols, MPI_DOUBLE, up,   11,
+    	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     
+    if (rank==0) {
     std::cout << "Analyzing total time " << runtime
               << " (" << noutsteps << " steps)\n";
+    }
 
-    // initiate the timer that will be needed to stop the program prematurely
+    // set up the timer that will be needed to stop the program prematurely
     int stop_seconds = std::stoi(argv[3]);
     //std::cout << stop_seconds << std::endl;
     double elapsed_time = 0.0;
-    auto start_time = std::chrono::steady_clock::now();
     auto end_time = std::chrono::steady_clock::now();
-
-    // start the timer for the main loop
-    start_time = std::chrono::steady_clock::now();
+    // initiate and start the timer
+    auto start_time = std::chrono::steady_clock::now();
     
     for (unsigned long s = 1; s < noutsteps; s++)
     {
@@ -121,57 +129,42 @@ int main(int argc, char** argv)
 	rho_handle.getVar({s, startrow, 0}, {1, localrows, ncols}, &rho[1][0]);
 
 	// MPI send/recieve
-	MPI_Sendrecv(&rho[1][0], ncols, MPI_DOUBLE, up, 11,
+	MPI_Sendrecv(&rho[1][0], 	 ncols, MPI_DOUBLE, up,   11,
 		     &rho[guarddown][0], ncols, MPI_DOUBLE, down, 11,
 		     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	MPI_Sendrecv(&rho[localrows][0], ncols, MPI_DOUBLE, down, 11,
-		     &rho[guardup][0], ncols, MPI_DOUBLE, up, 11,
-		     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	MPI_Sendrecv(&rho_prev[1][0], ncols, MPI_DOUBLE, up, 11,
-		     &rho_prev[guarddown][0], ncols, MPI_DOUBLE, down, 11,
-		     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	MPI_Sendrecv(&rho_prev[localrows][0], ncols, MPI_DOUBLE, down, 11,
-		     &rho_prev[guardup][0], ncols, MPI_DOUBLE, up, 11,
+		     &rho[guardup][0],   ncols, MPI_DOUBLE, up,   11,
 		     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
 	if (rank==0) {
         for (int j=1; j<ncols-1; j++) {
-	//	MPI_Sendrecv(&rho[1][j], 1,MPI_DOUBLE,up, 11,
-	//		     &rho[guarddown][j],1,MPI_DOUBLE,down,11,
-	//		     MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-	//	MPI_Sendrecv(&rho[localrows][j], 1,MPI_DOUBLE,down,11,
-	//		     &rho[guardup][j], 1,MPI_DOUBLE,up, 11,
-	//		     MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-	//	MPI_Sendrecv(&rho_prev[1][j], 1,MPI_DOUBLE,up, 11,
-	//		     &rho_prev[guarddown][j],1,MPI_DOUBLE,down,11,
-	//		     MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-	//	MPI_Sendrecv(&rho_prev[localrows][j], 1,MPI_DOUBLE,down,11,
-	//		     &rho_prev[guardup][j], 1,MPI_DOUBLE,up, 11,
-	//		     MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-	rho[0][j]=0.0;
-	rho_prev[0][j]=0.0; }
+	rho[guardup][j]=0.0;
+	//rho_prev[0][j]=0.0; 
+	}
 	}
 	if (rank==size-1) {
         for (int j=1; j<ncols-1; j++) {
-	rho[localrows+1][j]=0.0;
-	rho_prev[localrows+1][j]=0.0;}
+	rho[guarddown][j]=0.0;
+	//rho_prev[localrows+1][j]=0.0;
+	}
 	}
         
         
         // report status to console
-        std::cout << "\rCurrently analyzing time " << time << " (step " << s+1 << ")    ";
+        std::cout << "\rCurrently analyzing time " << time << " (step " << s+1 << ")     ";
         std::cout.flush();
 
         // compute energies
         double T_local = 0.0;
         double V_local = 0.0;
-        for (int i=1; i<localrows-1; i++) {
+        for (int i=1; i<localrows+1; i++) {
             for (int j=1; j<ncols-1; j++) {
                 T_local += pow((dx/outtime)*(rho[i][j]-rho_prev[i][j]),2);
                 V_local += pow(c,2)*(pow(rho[i][j]-rho[i-1][j],2)
                          +pow(rho[i][j]-rho[i][j-1],2));
             }
         }
+	//std::cout << "Process " << rank << "\t" << T_local << "\t" << V_local << "\t" << T_local+V_local << "\n";
 	
 	// reduce local energies to global energies
 	double T, V;
@@ -196,12 +189,9 @@ int main(int argc, char** argv)
 
     if (rank == 0) {
 	    fout.close();
+	    std::cout << "\nDone\nOutput written to " << outputfilename <<"\n";
     }
 
     MPI_Finalize();
-
-    std::cout << "\nDone\nOutput written to " << outputfilename <<"\n";
-
-
 
 }

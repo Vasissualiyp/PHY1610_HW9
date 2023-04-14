@@ -10,6 +10,8 @@
 #include <rarray>
 #include <chrono>
 
+#include "timing_output.h"
+
 using namespace netCDF;
 
 // helper routines to get attributes and dimensions from an open netcdf file
@@ -27,6 +29,8 @@ unsigned long get_dimension(NcFile& f, const std::string& dimname)
 
 int main(int argc, char** argv)
 {   
+    // initiate and start the timer
+    auto start_time = std::chrono::steady_clock::now();
 
     // Program parameters are the name of an input file and an output
     // file and are given from command line or, if not, are given
@@ -57,6 +61,7 @@ int main(int argc, char** argv)
     double dx      = get_double_attribute(f, "dx");
     double outtime = get_double_attribute(f, "outtime");
     double runtime = get_double_attribute(f, "runtime");
+    double time;
 
     int up = rank-1; if(up<0)up=MPI_PROC_NULL;
     int down = rank+1; if(down>=size)down=MPI_PROC_NULL;
@@ -81,7 +86,6 @@ int main(int argc, char** argv)
     // Create arrays for the densities
     rmatrix<double> rho(localrows + 2,ncols);
     rmatrix<double> rho_prev(localrows + 2,ncols);
-    double time;
 
     // Start output with a header
     std::ofstream fout(outputfilename);
@@ -109,12 +113,10 @@ int main(int argc, char** argv)
     }
 
     // set up the timer that will be needed to stop the program prematurely
-    int stop_seconds = std::stoi(argv[3]);
+    //int stop_seconds = std::stoi(argv[3]);
     //std::cout << stop_seconds << std::endl;
-    double elapsed_time = 0.0;
+    double full_running_time = 0.0;
     auto end_time = std::chrono::steady_clock::now();
-    // initiate and start the timer
-    auto start_time = std::chrono::steady_clock::now();
     
     for (unsigned long s = 1; s < noutsteps; s++)
     {
@@ -171,25 +173,26 @@ int main(int argc, char** argv)
 	MPI_Reduce(&T_local, &T, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 	MPI_Reduce(&V_local, &V, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
-	// get the end of the time
-	end_time = std::chrono::steady_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-	//std::cout << "Duration " << duration.count() << std::endl;
-	elapsed_time += duration.count()/1000;
-	//std::cout << elapsed_time << std::endl;
-
         // store in output file
 	if (rank == 0) {
 		fout << time << "\t" << T << "\t" << V << "\t" << T+V << "\n";
 	}
-	if (elapsed_time > stop_seconds) {
-		break;
-	}
+	//if (elapsed_time > stop_seconds) {
+	//	break;
+	//}
     }
 
     if (rank == 0) {
 	    fout.close();
 	    std::cout << "\nDone\nOutput written to " << outputfilename <<"\n";
+	    // get the end of the time
+	    end_time = std::chrono::steady_clock::now();
+	    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+	    //std::cout << "Duration " << duration.count() << std::endl;
+	    full_running_time = duration.count()/1000;
+	    //std::cout << elapsed_time << std::endl;
+    	    write_timing(size,full_running_time);
+
     }
 
     MPI_Finalize();

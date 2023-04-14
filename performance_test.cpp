@@ -4,7 +4,8 @@
 
 int main() {
     // An array of values for the number of processors
-    int processor_counts[] = {1, 2, 3, 5, 9, 16};
+    //int processor_counts[] = {1, 2, 3, 5, 9, 16};
+    int processor_counts[] = {4, 8, 12, 14, 16};
 
     // Iterate through each processor count
     for (int proc_count : processor_counts) {

@@ -15,7 +15,7 @@ TEST_CASE("Integrated test of analyzewave") {
     // Run the sim with test wave parameters file
     //std::string command = "./analyzewave precisewave.nc int_test.tsv ";
     std::string command = "mpirun -np "  + std::to_string(no_proccesses) + " ./analyzewave precisewave.nc int_test.tsv ";
-    command += std::to_string(time_to_run);
+    //command += std::to_string(time_to_run);
     std::system(command.c_str());
     
     // Compare the output file with the expected file

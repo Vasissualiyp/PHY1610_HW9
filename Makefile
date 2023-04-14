@@ -9,8 +9,19 @@ all: analyzewave
 analyzewave.o: analyzewave.cpp
 	$(CXX) -c $(CXXFLAGS) -o $@ $< 
 
-analyzewave: analyzewave.o 
+analyzewave: analyzewave.o timing_output.o
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+
+timing_output.o: timing_output.cpp
+	$(CXX) -c $(CXXFLAGS) -o $@ $< 
+
+performance_test.o: performance_test.cpp
+	$(CXX) -c $(CXXFLAGS) -o $@ $< 
+
+performance_test: performance_test.o 
+	$(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+	make analyzewave
+
 #}}}
 
 # Module tests compilation {{{
@@ -25,7 +36,7 @@ int_test: int_test.o
 #}}}
 
 run:
-	./analyzewave precisewave.nc energies.tsv 999999
+	./analyzewave precisewave.nc energies.tsv 
 
 clean:
-	$(RM) analyzewave.o mpianalyzewave.o analyzewave mpianalyzewave int_test.o int_test
+	$(RM) analyzewave.o mpianalyzewave.o analyzewave mpianalyzewave int_test.o int_test analyzewave_init analyzewave_init.o performance_test performance_test.o timing_output.o 
